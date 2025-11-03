@@ -302,6 +302,25 @@ bool SwiftRunner::ProcessArgument(
     }
 #endif
   };
+  
+  auto add_prefix_map_flags_for_custom_coverage = [&](const std::string& flag, const std::string& modules_dir_name) {
+    // cwd real (execution root)
+    const auto cwd = std::filesystem::current_path();
+
+    // Calcula target_path = canonical(cwd / modules_dir_name).parent_path()
+    const auto target_path = std::filesystem::canonical(cwd / modules_dir_name).parent_path();
+
+    consumer(flag);
+    consumer(cwd.string() + "=" + target_path.string());
+
+#if __APPLE__
+    std::string developer_dir = "__BAZEL_XCODE_DEVELOPER_DIR__";
+    if (bazel_placeholder_substitutions_.Apply(developer_dir)) {
+        consumer(flag);
+        consumer(developer_dir + "=/PLACEHOLDER_DEVELOPER_DIR");
+    }
+#endif
+  };
 
   if (arg[0] == '@') {
     changed = ProcessPossibleResponseFile(arg, consumer);
@@ -312,6 +331,15 @@ bool SwiftRunner::ProcessArgument(
         // Replace the $PWD with . to make the paths relative to the workspace
         // without breaking hermiticity.
         add_prefix_map_flags("-debug-prefix-map");
+        changed = true;
+      } else if (new_arg == "-romano1-coverage-hack") {
+        add_prefix_map_flags_for_custom_coverage("-coverage-prefix-map", "Modules");
+        changed = true;
+      } else if (new_arg == "-romano2-coverage-hack") {
+        add_prefix_map_flags_for_custom_coverage("-coverage-prefix-map", "AppRomano1");
+        changed = true;
+      } else if (new_arg == "-romano3-coverage-hack") {
+        add_prefix_map_flags_for_custom_coverage("-coverage-prefix-map", "AppRomano2");
         changed = true;
       } else if (new_arg == "-coverage-prefix-pwd-is-dot") {
         // Replace the $PWD with . to make the paths relative to the workspace
